@@ -1,0 +1,7 @@
+.Rproj.user
+.Rhistory
+*.Rproj
+.RData
+doc
+export
+*.xlsx

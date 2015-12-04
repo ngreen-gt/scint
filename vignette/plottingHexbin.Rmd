@@ -1,0 +1,120 @@
+---
+title: "Score-Intensity Visualization for FT-ICR-MS data"
+author: "N Green"
+date: "`r Sys.Date()`"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{Score-Intensity Visualization for FT-ICR-MS data}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+### Install packages. Skip if already done.
+```{r install.package, eval=FALSE}
+install.packages("hexbin")
+install.packages("dplyr")
+install.packages("plotrix")
+```
+
+### Load libraries.
+```{r load.library, echo=FALSE}
+library(dplyr)
+library(hexbin)
+library(plotrix)
+```
+
+### Import data with read.csv  
+```{r import.data}
+scint <- read.csv("../data/scint.csv")
+```
+
+### Filter out data outside plotting range
+```{r filter.data}
+scint3<-scint %>% filter(O.C<=1&H.C<=2.25)
+```
+
+### To know what percent of intensity is outside plotting range.
+```{r calc.filt.pct}
+dif.t<-sum(scint$scINT)-sum(scint3$scINT)
+dif.p<-100*dif.t/sum(scint$scINT)
+dif.p
+```
+
+### Begin creating the hexagonal bin plot. Function to create colormap -- can paste and run at once
+```{r create.map}
+myColorRamp <- function(colors, values) {
+v <- (values - min(values))/diff(range(values))
+x <- colorRamp(colors)(v)
+rgb(x[,1], x[,2], x[,3], maxColorValue = 255)
+}
+```
+
+### This generates the bins.  xbins is the number across, and can be changed (larger is more bins) 
+```{r gen.bins}
+hbin<-hexbin(scint3$O.C, scint3$H.C, xbins=40, IDs=TRUE)
+```
+
+### Calculate the intensity sums based on the bins
+```{r calc.int}
+SumHexBin<-data.frame(sums=hexTapply(hbin,scint3$ScINT,sum))
+```
+
+### Generate the colors for each hexagon
+```{r gen.color}
+cols<-myColorRamp(c("white","green","yellow","red"),SumHexBin$sums)
+```
+
+### Build the plot
+```{r plot.bins, fig.height=6, fig.width=6}
+P <- plot(hbin, type="n",legend=FALSE)
+pushHexport(P$plot.vp)
+grid.hexagons(hbin, style= "lattice", border = gray(1), pen = cols,  minarea = 1, maxarea = 1)
+```
+
+
+### Finishing touches of plots done in Inkscape, a free vector graphics program. Plots were exported in svg format from RStudio.
+<img src="../export/rplot01.png" width="600">
+
+
+
+# END of current file
+Still to be added are direct calculation of Score-intensity from output file and additional plotting.  While I like this hexplot it would be nice to do a similar thing in ggplot.  
+
+
+### Import fit file and skip header and certain columns and filter out rank zero
+
+s10063 <- read.table("C:/Users/NWG_Laptop/Desktop/00.org.doc/project/scint/GSF-2008/s10063.fit", quote="\"", comment.char="",skip = 64,colClasses = c("integer",rep("NULL",3),"numeric",rep("NULL",3),rep("integer",4),rep("NULL",6),rep("integer",2)))
+library(dplyr)
+s100633<-s10063 %>% filter(V20>0)
+dif.t<-sum(s10063$V5)
+dif.f<-sum(s100633$V5)
+dif.p<-100*dif.f/dif.t
+ 
+### Creating the secondary data frame
+
+tscint<-data.frame(O.C=(s100633$V12 / (s100633$V9 + s100633$V10)))
+tscint$H.C<-s100633$V11 / (s100633$V9 + s100633$V10)
+tscint$scINT<-(s100633$V5*s100633$V19)/(ave(ave(s100633$V19,s100633$V1,FUN=cumsum),interaction(s100633$V1,drop=T),FUN=max,na.rm=T))
+tscint3<-tscint %>% filter(O.C<=1&H.C<=2.25)
+dif.tot<-sum(tscint$scINT)-sum(tscint3$scINT)
+dif.per<-100*dif.t/sum(tscint$scINT)
+dif.per<-100*dif.tot/sum(tscint$scINT)
+thbin<-hexbin(tscint3$O.C, tscint3$H.C, xbins=40, IDs=TRUE)
+tSumHexBin<-data.frame(sums=hexTapply(thbin,tscint3$scINT,sum))
+tcols<-myColorRamp(c("white","green","yellow","red"),tSumHexBin$sums)
+tP <- plot(thbin, type="n",legend=FALSE)
+pushHexport(tP$plot.vp)
+grid.hexagons(thbin, style= "lattice", border = gray(1), pen = tcols,  minarea = 1, maxarea = 1)
+
+### gridder.R function and some ggplot examples
+
+gridded.data<-gridder(scint3$O.C,scint3$H.C,scint3$ScINT,seq(0,1.5,0.05),seq(0,2.25,0.05))
+names(gridded.data) <- c("O.C","H.C","scINT")
+library(ggplot2)
+g <- ggplot(gridded.data,aes(x=O.C,y=H.C,z=scINT))
+g + stat_contour()
+g + stat_contour()
+g + stat_summary2d()
+g <- ggplot(scint3,aes(x=O.C,y=H.C,z=scINT))
+g + stat_summary2d()
+
